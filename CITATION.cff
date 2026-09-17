@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this dataset, please cite it as below."
+authors:
+- family-names: "Kashani"
+  given-names: "SeyedMohammad"
+  orcid: "https://orcid.org/0009-0005-9232-0451"
+- family-names: "Khokhar"
+  given-names: "Ashfaq"
+- family-names: "Kim"
+  given-names: "Sang"
+
+title: "Superposition-Coded Physical-Layer Tagging Dataset (Source–Relay–Destination, USRP SDR)"
+version: 1.0.0
+date-released: "2026-09-17"
+url: "https://github.com/mkashani-phd/superposition-phy-security-dataset"
