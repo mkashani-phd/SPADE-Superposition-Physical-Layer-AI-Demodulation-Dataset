@@ -1,26 +1,67 @@
-# Superposition-Coded Physical-Layer Tagging Dataset (Source–Relay–Destination, USRP SDR)
+# SPADE: A Superposition Physical-Layer AI Demodulation Dataset (Source–Destination, USRP SDR)
 
-Over-the-air measurements from a 3-node (Source → Relay → Destination) software-defined
-radio testbed used to study **physical-layer message authentication via superposition
-coding**: instead of appending an authentication tag as a separate frame, the tag is
+Over-the-air measurements from a Source → Destination software-defined radio testbed for
+**SPADE** (Superposition Physical-layer AI DEmodulation): a dataset built for training and
+benchmarking **AI/ML-based joint demodulators** that recover a message and a
+superposed tag from a single physical-layer waveform. A second signal (the tag) is
 superposed directly onto the FSK-modulated message waveform at a fraction `alpha` of the
-message power, so both are recovered jointly from the same received signal.
+message power, so the two are recovered jointly from the same received signal — a
+nontrivial detection problem well suited to data-driven, learned decoders.
+
+Superposition-coded physical-layer tagging is a general mechanism with (at least) two
+security applications: **encryption** (the superposed tag carries cryptographic keystream
+material) and **authentication** (the superposed tag carries a verifiable
+message-authentication code). This release's primary focus is providing the raw
+demodulation data (soft-decision statistics, ground truth, and configuration) needed to
+train and evaluate AI decoders for both applications; the `encryption/` part covers the
+encryption application, and the plain tag in `alpha_sweep/` corresponds to the
+authentication-style use case.
 
 This release contains two dataset parts (see [Files](#files)):
 
-1. **`encryption/`** — the tag is an AES-CTR keystream chunk (not a plain HMAC), giving a
-   cryptographically-generated, per-transmission tag. `alpha = 0.5`, code rate `R = 0.5`.
-   Includes both the **relay**'s and the **destination**'s received signal for the same
-   transmissions.
-2. **`alpha_sweep/`** — the same superposition scheme with a fixed default message and a
-   plain tag (no encryption), swept over `alpha ∈ {0.0, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4}`
-   at `R = 0.5`, destination-only. Intended for developing and benchmarking a
-   **joint message+tag demodulator** across SNR and superposition power allocation.
+1. **`encryption/`** — the encryption application: the superposed tag is an AES-CTR
+   keystream chunk (not a plain HMAC), giving a cryptographically-generated,
+   per-transmission physical-layer encryption tag. `alpha = 0.5`, code rate `R = 0.5`.
+2. **`alpha_sweep/`** — a demodulation characterization dataset: the same superposition
+   scheme with a fixed default message and a plain (non-cryptographic, authentication-style)
+   tag, swept over `alpha ∈ {0.0, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4}` at `R = 0.5`,
+   destination-only. This part exists to characterize how the **superposition coding
+   itself** — and a demodulator's ability to separate message and tag — behaves across SNR
+   and power allocation.
+
+Beyond studying the coding scheme analytically, both parts are also structured as
+**machine-learning-ready datasets for data-driven decoding of superposition-coded
+signals**: raw per-symbol soft-decision statistics (`r0`, `r1`) are provided alongside
+ground-truth labels (`BER_tag`, `BER_msg`, and for `encryption/` the exact AES-CTR
+keystream via `scripts/verify_keystream.py`), so a joint message+tag demodulator can be
+learned directly from data rather than hand-derived, across a range of SNR and `alpha`
+operating points.
+
+## Motivation
+
+Wireless link security is typically added above the physical layer — e.g. encryption
+applied at the MAC layer or higher, with the PHY layer itself left as plaintext RF. SPADE
+instead explores adding security **at the physical layer** via superposition coding —
+superposing cryptographic (encryption) or verifiable (authentication) material directly
+onto the modulated waveform, independent of whatever security (if any) is applied at the
+MAC layer or above. This decouples physical-layer confidentiality/authenticity from
+MAC-layer support, so security is present on the air interface even when the MAC layer
+provides none, and layers can be composed without the PHY security mechanism depending on
+MAC-layer cooperation.
+
+Jointly recovering the message and the superposed tag from one waveform is a
+nontrivial detection problem — the tag is designed to interfere minimally with the
+message, but the two are not perfectly separable, especially at higher `alpha` or lower
+SNR. This makes the problem a natural candidate for **AI/ML-based joint demodulation**:
+instead of a hand-derived successive-cancellation or joint ML/MAP detector, a model can be
+trained directly on the raw `r0`/`r1` soft-decision statistics in this dataset to learn
+the message/tag separation, using `BER_tag`/`BER_msg` (and, for the encryption dataset,
+the exact reconstructed keystream) as ground truth.
 
 ## Testbed
 
-Two/three USRP software-defined radios (Source, Relay, Destination) placed in an office
-space at variable distance, communicating over the air at ~1.9 GHz using 2-level FSK
+Two USRP software-defined radios (Source, Destination) placed in an office space at
+variable distance, communicating over the air at ~1.9 GHz using 2-level FSK
 modulation. The message (and, superposed on it, the tag) is preceded by a preamble/postamble
 for frame synchronization, then LDPC-coded at rate `R`, then FSK-modulated. The receiver
 records raw IQ samples for offline post-processing rather than decoding in real time.
@@ -55,9 +96,7 @@ README.md
 
 ### `encryption/superposition_encryption_alpha0.5_R0.5.h5`
 
-Two top-level HDF5 groups, `destination` and `relay`, holding the same transmissions as
-seen at each node (1205 and 1208 frames respectively — frame counts differ because a frame
-seen by one node isn't always successfully captured/parsed by the other).
+One top-level HDF5 group, `destination`, holding 1205 received frames.
 
 ### `alpha_sweep/superposition_alpha_sweep_R0.5.h5`
 
@@ -98,7 +137,7 @@ sweep), but don't rely on that being true in general.
 | `MSG_CODE_RATE` | LDPC code rate `R` applied to the message |
 | `MAC_LDPC`, `MAC_REP` | Code rate / repetition factor applied to the tag (non-encryption datasets) |
 | `MAC_SHA` | Hash algorithm used to compute the plain HMAC tag (`sha256`) — not used in the encryption dataset, where the tag is an AES-CTR keystream instead |
-| `SOURCE`, `RELAY`, `DESTINATION` | USRP device identifiers (not IP addresses / no PII) |
+| `SOURCE`, `DESTINATION` | USRP device identifiers (not IP addresses / no PII) |
 | `FREQ`, `RX_RATE`, `TX_RATE`, `TX_SPS` | RF center frequency and sample rates |
 | `PREAMBLE`, `POSTAMBLE`, `PREAMBLE_REPEAT` | Frame synchronization sequences |
 | `PAYLOAD` | The fixed default test message transmitted in every frame (same across the whole dataset — not secret, it's placeholder text) |
@@ -166,15 +205,16 @@ users can independently verify this reconstruction procedure themselves, not onl
 
 ## Suggested uses
 
-- Benchmarking joint message+tag demodulators (successive cancellation, joint ML/MAP
-  detection) against ground truth, across a range of SNR and superposition-power (`alpha`)
-  operating points (`alpha_sweep/`).
-- Studying the BER/SNR trade-off of superposing a cryptographic tag versus a plain HMAC
-  tag on a physical-layer waveform (compare `alpha_sweep/` at `alpha=0` against
-  `encryption/`, keeping in mind the encryption dataset only covers `alpha=0.5`).
-- Relay-vs-destination channel comparison for the same transmissions (`encryption/`'s
-  `relay` and `destination` groups share overlapping transmissions from the same
-  experiment run).
+- Training and benchmarking **AI/ML-based (e.g. deep learning) joint demodulators** for
+  superposition-coded signals, using `r0`/`r1` as raw input features and
+  `BER_tag`/`BER_msg` or the reconstructed ground-truth tag as labels, across a range of
+  SNR and superposition-power (`alpha`) operating points (`alpha_sweep/`).
+- Benchmarking classical joint message+tag demodulators (successive cancellation, joint
+  ML/MAP detection) against the same ground truth, as a baseline for the above.
+- Studying the BER/SNR trade-off of the two security applications of superposition
+  tagging: **encryption** (a cryptographic AES-CTR tag, `encryption/`) versus
+  **authentication** (a plain, verifiable tag, `alpha_sweep/` at `alpha=0`) on the same
+  physical-layer waveform, keeping in mind the encryption dataset only covers `alpha=0.5`.
 
 ## Known limitations
 

@@ -9,7 +9,7 @@ authors:
 - family-names: "Kim"
   given-names: "Sang"
 
-title: "Superposition-Coded Physical-Layer Tagging Dataset (Source–Relay–Destination, USRP SDR)"
+title: "SPADE: A Superposition Physical-Layer AI Demodulation Dataset (Source–Destination, USRP SDR)"
 version: 1.0.0
 date-released: "2026-09-17"
 url: "https://github.com/mkashani-phd/superposition-phy-security-dataset"
